@@ -1,10 +1,16 @@
-import Constants.{EMBEDDING_DIM, STRIDE, WINDOW_SIZE}
+import Constants._
 import SparkObj.spark
+import org.deeplearning4j.models.embeddings.loader.WordVectorSerializer
+import org.deeplearning4j.models.word2vec.Word2Vec
+import org.deeplearning4j.text.sentenceiterator.LineSentenceIterator
+import org.deeplearning4j.text.tokenization.tokenizer.preprocessor.CommonPreprocessor
+import org.deeplearning4j.text.tokenization.tokenizerfactory.{DefaultTokenizerFactory, TokenizerFactory}
 import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.dataset.DataSet
 import org.nd4j.linalg.factory.Nd4j
 import org.slf4j.LoggerFactory
 
+import java.io.File
 import scala.util.matching.Regex
 
 object Preprocessor {
@@ -13,11 +19,28 @@ object Preprocessor {
   private val sentenceDelimiter: Regex = "(?<=[.!?])\\s+(?=[A-Z])".r
   private val wordDelimiter: Regex = "\\w+".r
 
+  // Train a Word12vec model for vector embeddings
+  private lazy val sentenceIterator = new LineSentenceIterator(new File(TRAINING_DATA_PATH))
+  private lazy val tokenizerFactory: TokenizerFactory = new DefaultTokenizerFactory()
+  tokenizerFactory.setTokenPreProcessor(new CommonPreprocessor)
+
+  private val w2v = new Word2Vec.Builder()
+    .minWordFrequency(5)
+    .layerSize(EMBEDDING_DIM)
+    .seed(42)
+    .windowSize(5)
+    .iterate(sentenceIterator)
+    .tokenizerFactory(tokenizerFactory)
+    .build
+
+  w2v.fit()
+
+  // Tokenize the text into sentences
+  def sentTokenize(text: String): Array[String] = sentenceDelimiter.split(text)
+
   // Tokenize the text into words
   def wordTokenize(text: String): Array[String] = {
-    val words = sentenceDelimiter.split(text).toSeq.flatMap( sentence => {
-      wordDelimiter.findAllIn(sentence).toSeq
-    }).toArray
+    val words = sentTokenize(text).flatMap(sentence => wordDelimiter.findAllIn(sentence))
     logger.info(s"Tokenized given string into ${words.length} tokens.")
     words
   }
@@ -56,9 +79,18 @@ object Preprocessor {
   }
 
   def encodeAndEmbed(tokens: Array[String]): INDArray = {
-    // Generate random embeddings :(
-    // THIS IS NOT AN ML COURSE!
-    val ret = Nd4j.rand(tokens.length, EMBEDDING_DIM)
+    val ret = Nd4j.zeros(tokens.length, EMBEDDING_DIM)
+
+    tokens.indices.foreach(i => {
+      // Use the saved word2vec model
+      ret.putRow(i,
+        if (w2v.hasWord(tokens(i)))
+          w2v.getWordVectorMatrix(tokens(i))
+        else
+          Nd4j.zeros(1, EMBEDDING_DIM)
+      )
+    })
+
     logger.info(s"Produced embeddings of shape ${ret.shape().mkString("Array(", ", ", ")")}" +
       s"for dataset of size ${tokens.length}."
     )

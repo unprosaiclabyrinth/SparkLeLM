@@ -1,4 +1,4 @@
-import Constants.{EMBEDDING_DIM, MODEL_SAVE_PATH, TRAINING_DATA_PATH, WINDOW_SIZE}
+import Constants.{EMBEDDING_DIM, LAYER0_NUM_NEURONS, LAYER1_NUM_NEURONS, MODEL_SAVE_PATH, TRAINING_DATA_PATH, WINDOW_SIZE}
 import SparkObj.spark
 import org.deeplearning4j.nn.conf.NeuralNetConfiguration
 import org.deeplearning4j.nn.conf.layers.{DenseLayer, OutputLayer}
@@ -12,9 +12,7 @@ import org.nd4j.linalg.dataset.DataSet
 import org.nd4j.linalg.learning.config.Adam
 import org.nd4j.linalg.lossfunctions.LossFunctions
 import org.slf4j.LoggerFactory
-
 import java.io.File
-import java.nio.file._
 
 object LLMTrainer {
   private val logger = LoggerFactory.getLogger(this.getClass.getName)
@@ -24,8 +22,8 @@ object LLMTrainer {
       new NeuralNetConfiguration.Builder()
         .updater(new Adam(1e-3))
         .list()
-        .layer(0, new DenseLayer.Builder().nIn(EMBEDDING_DIM).nOut(32).activation(Activation.RELU).build())
-        .layer(1, new DenseLayer.Builder().nOut(16).activation(Activation.RELU).build())
+        .layer(0, new DenseLayer.Builder().nIn(EMBEDDING_DIM).nOut(LAYER0_NUM_NEURONS).activation(Activation.RELU).build())
+        .layer(1, new DenseLayer.Builder().nOut(LAYER1_NUM_NEURONS).activation(Activation.RELU).build())
         .layer(2, new OutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
           .activation(Activation.SOFTMAX).nOut(EMBEDDING_DIM).build())
         .build()
@@ -40,21 +38,21 @@ object LLMTrainer {
     logger.info("Created the neural network underlying the LLM.")
 
     // Prepare data (using sliding window)
-    val trainingData = Preprocessor.wordTokenize(new String(Files.readAllBytes(Paths.get(TRAINING_DATA_PATH))))
-    val windows = Preprocessor.slidingWindowsFrom(trainingData)
+    val windows = Preprocessor.slidingWindowsFrom(TrainingData.asWords)
     logger.info(s"Created ${windows.length} sliding window data samples from the training data.")
 
-    val fuckingShit = windows.map(window => {
-      new DataSet(window.getFeatures, window.getLabels.repeat(0, 100))
+    // Pad labels with replicas to match their shape with the shape of the preOutput
+    val windowsWithAlignedLabels = windows.map(window => {
+      new DataSet(window.getFeatures, window.getLabels.repeat(0, WINDOW_SIZE))
     })
 
-    val rddData = spark.sparkContext.parallelize(fuckingShit)
+    val rddData = spark.sparkContext.parallelize(windowsWithAlignedLabels)
     logger.info(s"RDDStats: ${rddData.count()}")
 
     // TrainingMaster configuration for distributed training
     val trainingMaster = new ParameterAveragingTrainingMaster.Builder(WINDOW_SIZE)
-      .batchSizePerWorker(WINDOW_SIZE)
-      .averagingFrequency(5) // Frequency of parameter averaging
+      .batchSizePerWorker(WINDOW_SIZE) // Experimentally determined (!)
+      .averagingFrequency(5)
       .build()
 
     // SparkDl4jMultiLayer with the Spark context and model

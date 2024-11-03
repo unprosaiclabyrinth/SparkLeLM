@@ -1,4 +1,4 @@
-import Constants.{MODEL_SAVE_PATH, TRAINING_DATA_PATH}
+import Constants.{GENERATION_LENGTH, MODEL_SAVE_PATH, TRAINING_DATA_PATH}
 import org.deeplearning4j.util.ModelSerializer
 import org.nd4j.linalg.factory.Nd4j
 
@@ -11,9 +11,7 @@ object TextGenerator {
   private val LLModel = ModelSerializer.restoreMultiLayerNetwork(new File(MODEL_SAVE_PATH))
 
   // Initialize vocabulary from the training data
-  private val vocabulary = Preprocessor.wordTokenize(
-    new String(Files.readAllBytes(Paths.get(TRAINING_DATA_PATH)))
-  )
+  private val vocabulary = TrainingData.asWords
 
   // Method to generate the next word based on the query using the pretrained model
   def generateNextWord(context: Array[String]): String = {
@@ -27,8 +25,8 @@ object TextGenerator {
   }
 
   // Method to generate a full sentence based on the seed text
-  def generateSentence(seedText: String, maxWords: Int): String = {
-    (1 to maxWords).map(_ =>
+  def generateSentence(seedText: String): String = {
+    (1 to GENERATION_LENGTH).map(_ =>
       s" ${generateNextWord(Preprocessor.wordTokenize(seedText))}"
     ).mkString
   }
@@ -37,6 +35,6 @@ object TextGenerator {
   private def convertIndexToWord(index: Int): String = vocabulary(index % vocabulary.length)
 
   def main(args: Array[String]): Unit = {
-    println(s"${generateSentence("The cat", 5)}")
+    println(s"${generateSentence("The cat")}")
   }
 }
