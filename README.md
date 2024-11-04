@@ -33,7 +33,7 @@ SparkLeLM defines and trains a neural network using Deeplearning4j’s `MultiLay
 2. a second dense layer also with ReLU,
 3. and an output layer that uses **softmax activation** and **multiclass cross-entropy loss** for classification.
 
-The model is optimized with the **Adam algorithm**, initialized with a learning rate of 1 \times 10^{-3}, and is designed to handle input embeddings of a dimension specified in the config file.
+The model is optimized with the **Adam algorithm**, initialized with a learning rate of $$1 \times 10^{-3}$$, and is designed to handle input embeddings of a dimension specified in the config file.
 
 # Prerequisites and Dependencies
 
@@ -86,6 +86,6 @@ SparkLeLM uses **SLF4j** (Simple Logging Facade for Java) for logging. It prints
 SparkLeLM trains its LLM on the dataset: the plaintext version of the book, *The Adventures of Sherlock Holmes* by **Sir Arthur Conan Doyle** obtained from Project Gutenberg.
 
 ```shell
-SparkLeLM/  wc sherlock.txt
+SparkLeLM/$ wc sherlock.txt
    11922  104506  587719 sherlock.txt
 ```
