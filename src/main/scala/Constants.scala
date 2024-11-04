@@ -10,7 +10,7 @@ object Constants {
 
   lazy val SPARK_APP_NAME: String = config.getString("app.spark_app_name")
   lazy val SPARK_MASTER: String = config.getString("app.spark_master")
-  lazy val W2V_TMP_LOCAL_FILE: String = config.getString("w2v_tmp_local_file")
+  lazy val W2V_TMP_LOCAL_FILE: String = config.getString("app.w2v_tmp_local_file")
   lazy val TRAINING_DATA_URI: String = config.getString("app.training_data_uri")
   lazy val MODEL_SAVE_URI: String = config.getString("app.model_save_uri")
 
