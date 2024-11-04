@@ -1,7 +1,5 @@
 # **SparkLeLM**
 
-## **Homework 2**
-## **Course: CS 441, Fall 2024, UIC**
 ## **Author: Himanshu Dongre**
 
 # Overview
@@ -51,7 +49,7 @@ SparkLeLM uses **Apache Hadoop 3.3.4** for file I/O.
 
 # Get Started
 
-**Update `sparklelm.conf` as per your needs. It is currently configured to run on an AWS EMR cluster with custom AWS S3 URIs. Also, reconfigure file I/O using Hadoop in the source code to enable local file I/O. It is currently configured to use the file system of AWS S3.**\
+**Update `sparklelm.conf` as per your needs. It is currently configured to run on an AWS EMR cluster with custom AWS S3 URIs. Also, reconfigure file I/O using Hadoop in the source code to enable local file I/O. It is currently configured to use the file system of AWS S3.**
 
 Once SparkLeLM has been prepared for local execution, it can be run on the command-line using the following command:-
 
