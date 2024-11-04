@@ -1,14 +1,19 @@
-import Constants.{GENERATION_LENGTH, MODEL_SAVE_PATH, TRAINING_DATA_PATH}
+import Constants.MODEL_SAVE_URI
+import FileIO.fs
+import org.apache.hadoop.fs.Path
 import org.deeplearning4j.util.ModelSerializer
 import org.nd4j.linalg.factory.Nd4j
 
-import java.io.File
-import java.nio.file.{Files, Paths}
+import scala.util.Using
 
 object TextGenerator {
   LLMTrainer.trainLLM()
 
-  private val LLModel = ModelSerializer.restoreMultiLayerNetwork(new File(MODEL_SAVE_PATH))
+  private val LLModel = Using(fs.open(new Path(MODEL_SAVE_URI)))(inStream =>
+    ModelSerializer.restoreMultiLayerNetwork(inStream)
+  ).getOrElse {
+    throw new RuntimeException("Failed to restore the model from S3")
+  }
 
   // Initialize vocabulary from the training data
   private val vocabulary = TrainingData.asWords
@@ -25,8 +30,8 @@ object TextGenerator {
   }
 
   // Method to generate a full sentence based on the seed text
-  def generateSentence(seedText: String): String = {
-    (1 to GENERATION_LENGTH).map(_ =>
+  def generateSentence(seedText: String, maxWords: Int): String = {
+    (1 to maxWords).map(_ =>
       s" ${generateNextWord(Preprocessor.wordTokenize(seedText))}"
     ).mkString
   }
@@ -35,6 +40,10 @@ object TextGenerator {
   private def convertIndexToWord(index: Int): String = vocabulary(index % vocabulary.length)
 
   def main(args: Array[String]): Unit = {
-    println(s"${generateSentence("The cat")}")
+    println("Sample queries:-")
+    val sampleQueries = List[String]("The cat", "CS441 is", "I was", "Sherlock Holmes", "Elementary")
+    sampleQueries.foreach(query =>
+      println(s"$query -> ${generateSentence(query, 5)}")
+    )
   }
 }

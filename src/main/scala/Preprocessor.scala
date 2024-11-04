@@ -1,6 +1,5 @@
 import Constants._
 import SparkObj.spark
-import org.deeplearning4j.models.embeddings.loader.WordVectorSerializer
 import org.deeplearning4j.models.word2vec.Word2Vec
 import org.deeplearning4j.text.sentenceiterator.LineSentenceIterator
 import org.deeplearning4j.text.tokenization.tokenizer.preprocessor.CommonPreprocessor
@@ -11,36 +10,41 @@ import org.nd4j.linalg.factory.Nd4j
 import org.slf4j.LoggerFactory
 
 import java.io.File
-import scala.util.matching.Regex
+import java.nio.file._
 
 object Preprocessor {
   private val logger = LoggerFactory.getLogger(this.getClass.getName)
 
-  private val sentenceDelimiter: Regex = "(?<=[.!?])\\s+(?=[A-Z])".r
-  private val wordDelimiter: Regex = "\\w+".r
-
   // Train a Word12vec model for vector embeddings
-  private lazy val sentenceIterator = new LineSentenceIterator(new File(TRAINING_DATA_PATH))
-  private lazy val tokenizerFactory: TokenizerFactory = new DefaultTokenizerFactory()
-  tokenizerFactory.setTokenPreProcessor(new CommonPreprocessor)
+  val w2v = {
+    // Write the training data to a temporary local file
+    Files.write(Paths.get(W2V_TMP_LOCAL_FILE), TrainingData.asString.getBytes, StandardOpenOption.CREATE, StandardOpenOption.WRITE)
 
-  private val w2v = new Word2Vec.Builder()
-    .minWordFrequency(5)
-    .layerSize(EMBEDDING_DIM)
-    .seed(42)
-    .windowSize(5)
-    .iterate(sentenceIterator)
-    .tokenizerFactory(tokenizerFactory)
-    .build
+    val sentenceIterator = new LineSentenceIterator(new File(W2V_TMP_LOCAL_FILE))
+    val tokenizerFactory: TokenizerFactory = new DefaultTokenizerFactory()
+    tokenizerFactory.setTokenPreProcessor(new CommonPreprocessor)
 
-  w2v.fit()
+    val model = new Word2Vec.Builder()
+      .minWordFrequency(5)
+      .layerSize(EMBEDDING_DIM)
+      .seed(42)
+      .windowSize(5)
+      .iterate(sentenceIterator)
+      .tokenizerFactory(tokenizerFactory)
+      .build
 
-  // Tokenize the text into sentences
-  def sentTokenize(text: String): Array[String] = sentenceDelimiter.split(text)
+    model.fit()
+    Files.delete(Paths.get(W2V_TMP_LOCAL_FILE)) // Undo temporary file creation
+    model
+  }
+
+  // Function to split text into sentences
+  def sentTokenize(text: String): Array[String] = text.split("""(?<=[.!?])["']?\s+(?=[A-Z])""")
 
   // Tokenize the text into words
   def wordTokenize(text: String): Array[String] = {
-    val words = sentTokenize(text).flatMap(sentence => wordDelimiter.findAllIn(sentence))
+    // Split into sentences and then words, filtering out any empty tokens
+    val words = sentTokenize(text).flatMap(_.split("\\W+")).filter(_.nonEmpty)
     logger.info(s"Tokenized given string into ${words.length} tokens.")
     words
   }
@@ -91,6 +95,7 @@ object Preprocessor {
       )
     })
 
+//    val ret = Nd4j.rand(tokens.length, EMBEDDING_DIM)
     logger.info(s"Produced embeddings of shape ${ret.shape().mkString("Array(", ", ", ")")}" +
       s"for dataset of size ${tokens.length}."
     )
@@ -98,7 +103,7 @@ object Preprocessor {
   }
 
   // Compute sinusoidal positional embeddings for a given window size
-  private def positionalEmbedding: INDArray = {
+  def positionalEmbedding: INDArray = {
     val positionalEncoding = Nd4j.zeros(WINDOW_SIZE, EMBEDDING_DIM)
 
     (0 until WINDOW_SIZE).foreach( pos => {

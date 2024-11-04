@@ -10,11 +10,10 @@ object Constants {
 
   lazy val SPARK_APP_NAME: String = config.getString("app.spark_app_name")
   lazy val SPARK_MASTER: String = config.getString("app.spark_master")
-  lazy val TRAINING_DATA_PATH: String = config.getString("app.training_data_path")
-  lazy val MODEL_SAVE_PATH: String = config.getString("app.model_save_path")
-  lazy val W2V_PATH: String = config.getString("app.w2v_path")
+  lazy val W2V_TMP_LOCAL_FILE: String = config.getString("w2v_tmp_local_file")
+  lazy val TRAINING_DATA_URI: String = config.getString("app.training_data_uri")
+  lazy val MODEL_SAVE_URI: String = config.getString("app.model_save_uri")
 
   lazy val LAYER0_NUM_NEURONS: Int = config.getInt("app.layer0_num_neurons")
   lazy val LAYER1_NUM_NEURONS: Int = config.getInt("app.layer1_num_neurons")
-  lazy val GENERATION_LENGTH: Int = config.getInt("app.generation_length")
 }

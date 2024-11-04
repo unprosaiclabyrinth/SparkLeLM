@@ -1,9 +1,11 @@
-import Constants.{EMBEDDING_DIM, LAYER0_NUM_NEURONS, LAYER1_NUM_NEURONS, MODEL_SAVE_PATH, TRAINING_DATA_PATH, WINDOW_SIZE}
+import Constants._
+import FileIO.fs
 import SparkObj.spark
+import org.apache.hadoop.fs.Path
 import org.deeplearning4j.nn.conf.NeuralNetConfiguration
 import org.deeplearning4j.nn.conf.layers.{DenseLayer, OutputLayer}
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork
-import org.deeplearning4j.optimize.listeners.ScoreIterationListener
+import org.deeplearning4j.optimize.listeners.{CollectScoresIterationListener, ScoreIterationListener}
 import org.deeplearning4j.spark.impl.multilayer.SparkDl4jMultiLayer
 import org.deeplearning4j.spark.impl.paramavg.ParameterAveragingTrainingMaster
 import org.deeplearning4j.util.ModelSerializer
@@ -12,7 +14,8 @@ import org.nd4j.linalg.dataset.DataSet
 import org.nd4j.linalg.learning.config.Adam
 import org.nd4j.linalg.lossfunctions.LossFunctions
 import org.slf4j.LoggerFactory
-import java.io.File
+
+import scala.util.Using
 
 object LLMTrainer {
   private val logger = LoggerFactory.getLogger(this.getClass.getName)
@@ -22,13 +25,16 @@ object LLMTrainer {
       new NeuralNetConfiguration.Builder()
         .updater(new Adam(1e-3))
         .list()
-        .layer(0, new DenseLayer.Builder().nIn(EMBEDDING_DIM).nOut(LAYER0_NUM_NEURONS).activation(Activation.RELU).build())
-        .layer(1, new DenseLayer.Builder().nOut(LAYER1_NUM_NEURONS).activation(Activation.RELU).build())
+        .layer(0, new DenseLayer.Builder().nIn(EMBEDDING_DIM).nOut(LAYER0_NUM_NEURONS).activation(Activation.RELU).build)
+        .layer(1, new DenseLayer.Builder().nOut(LAYER1_NUM_NEURONS).activation(Activation.RELU).build)
         .layer(2, new OutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
-          .activation(Activation.SOFTMAX).nOut(EMBEDDING_DIM).build())
+          .activation(Activation.SOFTMAX).nOut(EMBEDDING_DIM).build)
         .build()
     )
     model.init()
+
+    // Set listeners to monitor the training progress
+
     model
   }
 
@@ -58,16 +64,23 @@ object LLMTrainer {
     // SparkDl4jMultiLayer with the Spark context and model
     val sparkModel = new SparkDl4jMultiLayer(spark.sparkContext, LLModel, trainingMaster)
 
-    // Set listeners to monitor the training progress
-    LLModel.setListeners(new ScoreIterationListener(10))
+    // Set a model listener for score
+    val csil = new CollectScoresIterationListener(1)
+    LLModel.setListeners(csil)
 
     // Train the model on the distributed RDD dataset
     sparkModel.fit(rddData)
     logger.info("Trained the model using Spark.")
 
     // Save the model
-    ModelSerializer.writeModel(sparkModel.getNetwork, new File(MODEL_SAVE_PATH), true)
-    logger.info(s"Wrote the model to $MODEL_SAVE_PATH.")
+    Using(fs.create(new Path(MODEL_SAVE_URI)))(outStream =>
+      ModelSerializer.writeModel(sparkModel.getNetwork, outStream, true)
+    )
+    logger.info(s"Wrote the model to $MODEL_SAVE_URI.")
+
+    // print stats to stdout
+    csil.exportScores(System.out)
+    println(s"Model learning rate: ${sparkModel.getNetwork.getLearningRate(0)}")
 
     // Close resources
     trainingMaster.deleteTempFiles(spark.sparkContext)
